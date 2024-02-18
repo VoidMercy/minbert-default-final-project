@@ -1,0 +1,4 @@
+dev sentiment acc :: 0.413
+dev paraphrase acc :: 0.620
+dev sts corr :: -0.085
+dev linguistic acc :: 0.307
