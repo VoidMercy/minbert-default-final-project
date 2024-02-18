@@ -253,6 +253,7 @@ def train_sst(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}\n")
+	save_model(model, optimizer, args, config, args.filepath)
 
 def train_paraphrase(args, model, device, config):
     # Create the data and its corresponding datasets and dataloader.
@@ -312,6 +313,7 @@ def train_paraphrase(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}\n")
+	save_model(model, optimizer, args, config, args.filepath)
 
 def train_sts(args, model, device, config):
     # Create the data and its corresponding datasets and dataloader.
@@ -371,6 +373,7 @@ def train_sts(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train corr :: {train_corr :.3f}, dev corr :: {dev_corr :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train corr :: {train_corr :.3f}, dev corr :: {dev_corr :.3f}\n")
+	save_model(model, optimizer, args, config, args.filepath)
 
 def train_lin(args, model, device, config):
     # Create the data and its corresponding datasets and dataloader.
@@ -424,6 +427,7 @@ def train_lin(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}\n")
+	save_model(model, optimizer, args, config, args.filepath)
 
 def train_multitask(args):
     '''Train MultitaskBERT.
@@ -637,7 +641,7 @@ def get_args():
 if __name__ == "__main__":
     args = get_args()
     args.filepath = f'{args.option}-{args.epochs}-{args.lr}-{args.f}-multitask.pt' # Save path.
-    args.acc_out = f'{args.f}_{args.task}_acc.txt'
+    args.acc_out = f'output/{args.f}_{args.task}_acc.txt'
     seed_everything(args.seed)  # Fix the seed for reproducibility.
     train_multitask(args)
     test_multitask(args)
