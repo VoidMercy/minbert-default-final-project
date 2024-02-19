@@ -482,8 +482,9 @@ def train_pretraining(args, model, device, config):
         with open(args.acc_out, "a") as f:
             f.write(f"Pretrain epoch {epoch}: train loss :: {train_loss :.3f}\n")
 
-        torch.save(model.bert.state_dict(), args.enable_pretrain)
-        print(f"Saved pre-trained BERT to {args.enable_pretrain}")
+        fname = f"epoch_{epoch}_" + args.enable_pretrain
+        torch.save(model.state_dict(), fname)
+        print(f"Saved pre-trained BERT to {fname}")
 
     return model
 
@@ -529,11 +530,12 @@ def convert_state_dict(path):
             new_key = new_key[5:]
         new_keys.append(new_key)
 
+    new_state_dict = {}
     for old_key, new_key in zip(old_keys, new_keys):
       # print(old_key, new_key)
-      state_dict[new_key] = state_dict.pop(old_key)
+      new_state_dict[new_key] = state_dict.pop(old_key)
 
-    return state_dict
+    return new_state_dict
 
 def train_multitask(args):
     '''Train MultitaskBERT.
