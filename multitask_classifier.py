@@ -258,7 +258,6 @@ def train_sst(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}\n")
-    save_model(model, optimizer, args, config, args.filepath)
 
 def train_paraphrase(args, model, device, config):
     # Create the data and its corresponding datasets and dataloader.
@@ -318,7 +317,6 @@ def train_paraphrase(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}\n")
-    save_model(model, optimizer, args, config, args.filepath)
 
 def train_sts(args, model, device, config):
     # Create the data and its corresponding datasets and dataloader.
@@ -378,7 +376,6 @@ def train_sts(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train corr :: {train_corr :.3f}, dev corr :: {dev_corr :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train corr :: {train_corr :.3f}, dev corr :: {dev_corr :.3f}\n")
-    save_model(model, optimizer, args, config, args.filepath)
 
 def train_lin(args, model, device, config):
     # Create the data and its corresponding datasets and dataloader.
@@ -432,7 +429,6 @@ def train_lin(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}\n")
-    save_model(model, optimizer, args, config, args.filepath)
 
 def train_pretraining(args, model, device, config):
     all_sentences = load_mlm_data(args.sst_train,args.para_train,args.sts_train,args.lin_train, args.pretrain_dataset)
