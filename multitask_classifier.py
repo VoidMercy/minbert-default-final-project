@@ -483,6 +483,52 @@ def train_pretraining(args, model, device, config):
 
     return model
 
+def convert_state_dict(path):
+    state_dict = torch.load(path)
+    # Convert old format to new format if needed from a PyTorch state_dict
+    old_keys = []
+    new_keys = []
+    m = {'embeddings.word_embeddings': 'word_embedding',
+         'embeddings.position_embeddings': 'pos_embedding',
+         'embeddings.token_type_embeddings': 'tk_type_embedding',
+         'embeddings.LayerNorm': 'embed_layer_norm',
+         'embeddings.dropout': 'embed_dropout',
+         'encoder.layer': 'bert_layers',
+         'pooler.dense': 'pooler_dense',
+         'pooler.activation': 'pooler_af',
+         'attention.self': "self_attention",
+         'attention.output.dense': 'attention_dense',
+         'attention.output.LayerNorm': 'attention_layer_norm',
+         'attention.output.dropout': 'attention_dropout',
+         'intermediate.dense': 'interm_dense',
+         'intermediate.intermediate_act_fn': 'interm_af',
+         'output.dense': 'out_dense',
+         'output.LayerNorm': 'out_layer_norm',
+         'output.dropout': 'out_dropout'}
+
+    for key in state_dict.keys():
+      new_key = None
+      if "gamma" in key:
+        new_key = key.replace("gamma", "weight")
+      if "beta" in key:
+        new_key = key.replace("beta", "bias")
+      for x, y in m.items():
+        if new_key is not None:
+          _key = new_key
+        else:
+          _key = key
+        if x in key:
+          new_key = _key.replace(x, y)
+      if new_key:
+        old_keys.append(key)
+        new_keys.append(new_key)
+
+    for old_key, new_key in zip(old_keys, new_keys):
+      # print(old_key, new_key)
+      state_dict[new_key] = state_dict.pop(old_key)
+
+    return state_dict
+
 def train_multitask(args):
     '''Train MultitaskBERT.
 
@@ -505,7 +551,11 @@ def train_multitask(args):
     model = model.to(device)
 
     if args.load_pretrain:
-        model.bert.load_state_dict(torch.load(args.load_pretrain))
+        state_dict = convert_state_dict(args.load_pretrain)
+        state_dict["position_ids"] = model.state_dict()["bert.position_ids"]
+        state_dict["pooler_dense.weight"] = model.state_dict()["bert.pooler_dense.weight"]
+        state_dict["pooler_dense.bias"] = model.state_dict()["bert.pooler_dense.bias"]
+        model.bert.load_state_dict(state_dict)
         model.set_grad(config)
         print(f"Loaded pre-trained BERT from {args.load_pretrain}")
 
@@ -514,7 +564,12 @@ def train_multitask(args):
         pretrained_model = train_pretraining(args, model, device, config)
         torch.save(pretrained_model.bert.state_dict(), args.enable_pretrain)
         print(f"Saved pre-trained BERT to {args.enable_pretrain}")
-        model.bert.load_state_dict(pretrained_model.bert.state_dict())
+
+        state_dict = convert_state_dict(args.enable_pretrain)
+        state_dict["position_ids"] = model.state_dict()["bert.position_ids"]
+        state_dict["pooler_dense.weight"] = model.state_dict()["bert.pooler_dense.weight"]
+        state_dict["pooler_dense.bias"] = model.state_dict()["bert.pooler_dense.bias"]
+        model.bert.load_state_dict(state_dict)
         model.set_grad(config)
 
     if args.task == 'sst':
