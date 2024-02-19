@@ -478,10 +478,11 @@ def train_pretraining(args, model, device, config):
 
         train_loss = train_loss / (num_batches)
 
-        print(f"Epoch {epoch}: train loss :: {train_loss :.3f}")
+        print(f"Pretrain epoch {epoch}: train loss :: {train_loss :.3f}")
         with open(args.acc_out, "a") as f:
-            f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}\n")
-    save_model(model, optimizer, args, config, args.filepath)
+            f.write(f"Pretrain epoch {epoch}: train loss :: {train_loss :.3f}\n")
+
+    return model
 
 def train_multitask(args):
     '''Train MultitaskBERT.
@@ -506,12 +507,12 @@ def train_multitask(args):
 
     if args.load_pretrain:
         model.bert.load_state_dict(torch.load(args.load_pretrain))
-        model.set_grad()
+        model.set_grad(config)
         print(f"Loaded pre-trained BERT from {args.load_pretrain}")
 
     if args.enable_pretrain:
         assert args.option == "finetune"
-        train_pretraining(args, model, device, config)
+        pretrained_model = train_pretraining(args, model, device, config)
         torch.save(model.bert.state_dict(), args.enable_pretrain)
         print(f"Saved pre-trained BERT to {args.enable_pretrain}")
 
