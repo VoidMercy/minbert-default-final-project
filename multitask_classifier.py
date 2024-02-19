@@ -444,6 +444,7 @@ def train_pretraining(args, model, device, config):
     model = BertForMaskedLM.from_pretrained('bert-base-uncased')
     if os.path.isfile(args.enable_pretrain):
       model.load_state_dict(torch.load(args.enable_pretrain))
+      print(f"Loaded cached further pretraining MLM model {args.enable_pretrain}")
     for param in model.parameters():
         param.requires_grad = True
     model.to(device)
