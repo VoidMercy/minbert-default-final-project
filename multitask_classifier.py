@@ -12,6 +12,8 @@ Running `python multitask_classifier.py` trains and tests your MultitaskBERT and
 writes all required submission files.
 '''
 
+from functools import partial
+
 import os
 import random, numpy as np, argparse
 from types import SimpleNamespace
@@ -37,6 +39,14 @@ from datasets import (
 
 from evaluation import model_eval_sst, model_eval_paraphrase, model_eval_sts, model_eval_lin, model_eval_multitask, model_eval_test_multitask
 
+from minlora import (
+    LoRAParametrization,
+    add_lora,
+    apply_to_lora,
+    merge_lora,
+)
+
+from minlora import add_lora, apply_to_lora, disable_lora, enable_lora, get_lora_params, merge_lora, name_is_lora, remove_lora, load_multiple_lora, select_lora
 
 TQDM_DISABLE=False
 
@@ -81,12 +91,31 @@ class MultitaskBERT(nn.Module):
         self.linguistic_linear2 = torch.nn.Linear(256, 1)
         self.initialize_weights()
 
+        if config.lora:
+            self.add_lora(config.lora)
+
     def set_grad(self, config):
         for param in self.bert.parameters():
-            if config.option == 'pretrain':
-                param.requires_grad = False
-            elif config.option == 'finetune':
+            if config.option == 'finetune':
                 param.requires_grad = True
+            elif config.option == 'pretrain':
+                param.requires_grad = False
+
+    def add_lora(self, r):
+        lora_config = {
+            nn.Embedding: {
+                "weight": partial(LoRAParametrization.from_embedding, rank=r),
+            },
+            nn.Linear: {
+                "weight": partial(LoRAParametrization.from_linear, rank=r),
+            },
+        }
+        add_lora(self.bert, lora_config=lora_config)
+
+        for param in self.bert.parameters():
+            param.requires_grad = False
+        for param in get_lora_params(self.bert):
+            param.requires_grad = True
 
     def initialize_weights(self):
         init_method = torch.nn.init.xavier_uniform_
@@ -435,7 +464,6 @@ def train_pretraining(args, model, device, config):
         param.requires_grad = True
     model.to(device)
 
-    lr = args.lr
     optimizer = get_optimizer(args, model)
 
     # Run for the specified number of epochs.
@@ -537,11 +565,14 @@ def train_multitask(args):
     # Init model.
     config = {'hidden_dropout_prob': args.hidden_dropout_prob,
               # 'num_labels': num_labels,
+              'lora': args.lora,
               'hidden_size': 768,
               'data_dir': '.',
               'option': args.option}
     config = SimpleNamespace(**config)
     model = MultitaskBERT(config)
+
+    lr = args.lr
     model = model.to(device)
 
     if args.load_pretrain:
@@ -633,11 +664,12 @@ def test_multitask(args):
                                                                     sts_dev_dataloader,
                                                                     lin_dev_dataloader, model, device)
 
-        test_sst_y_pred, \
-            test_sst_sent_ids, test_para_y_pred, test_para_sent_ids, test_sts_y_pred, test_sts_sent_ids, test_lin_y_pred, test_lin_sent_ids = \
-                model_eval_test_multitask(sst_test_dataloader,
-                                          para_test_dataloader,
-                                          sts_test_dataloader, lin_test_dataloader, model, device)
+        if args.test:
+            test_sst_y_pred, \
+                test_sst_sent_ids, test_para_y_pred, test_para_sent_ids, test_sts_y_pred, test_sts_sent_ids, test_lin_y_pred, test_lin_sent_ids = \
+                    model_eval_test_multitask(sst_test_dataloader,
+                                              para_test_dataloader,
+                                              sts_test_dataloader, lin_test_dataloader, model, device)
 
         with open(args.sst_dev_out, "w+") as f:
             print(f"dev sentiment acc :: {dev_sentiment_accuracy :.3f}")
@@ -645,10 +677,11 @@ def test_multitask(args):
             for p, s in zip(dev_sst_sent_ids, dev_sst_y_pred):
                 f.write(f"{p} , {s} \n")
 
-        with open(args.sst_test_out, "w+") as f:
-            f.write(f"id \t Predicted_Sentiment \n")
-            for p, s in zip(test_sst_sent_ids, test_sst_y_pred):
-                f.write(f"{p} , {s} \n")
+        if args.test:
+            with open(args.sst_test_out, "w+") as f:
+                f.write(f"id \t Predicted_Sentiment \n")
+                for p, s in zip(test_sst_sent_ids, test_sst_y_pred):
+                    f.write(f"{p} , {s} \n")
 
         with open(args.para_dev_out, "w+") as f:
             print(f"dev paraphrase acc :: {dev_paraphrase_accuracy :.3f}")
@@ -656,10 +689,11 @@ def test_multitask(args):
             for p, s in zip(dev_para_sent_ids, dev_para_y_pred):
                 f.write(f"{p} , {s} \n")
 
-        with open(args.para_test_out, "w+") as f:
-            f.write(f"id \t Predicted_Is_Paraphrase \n")
-            for p, s in zip(test_para_sent_ids, test_para_y_pred):
-                f.write(f"{p} , {s} \n")
+        if args.test:
+            with open(args.para_test_out, "w+") as f:
+                f.write(f"id \t Predicted_Is_Paraphrase \n")
+                for p, s in zip(test_para_sent_ids, test_para_y_pred):
+                    f.write(f"{p} , {s} \n")
 
         with open(args.sts_dev_out, "w+") as f:
             print(f"dev sts corr :: {dev_sts_corr :.3f}")
@@ -667,10 +701,11 @@ def test_multitask(args):
             for p, s in zip(dev_sts_sent_ids, dev_sts_y_pred):
                 f.write(f"{p} , {s} \n")
 
-        with open(args.sts_test_out, "w+") as f:
-            f.write(f"id \t Predicted_Similiary \n")
-            for p, s in zip(test_sts_sent_ids, test_sts_y_pred):
-                f.write(f"{p} , {s} \n")
+        if args.test:
+            with open(args.sts_test_out, "w+") as f:
+                f.write(f"id \t Predicted_Similiary \n")
+                for p, s in zip(test_sts_sent_ids, test_sts_y_pred):
+                    f.write(f"{p} , {s} \n")
 
         with open(args.lin_dev_out, "w+") as f:
             print(f"dev linguistic acc :: {dev_linguistic_accuracy :.3f}")
@@ -678,10 +713,11 @@ def test_multitask(args):
             for p, s in zip(dev_lin_sent_ids, dev_lin_y_pred):
                 f.write(f"{p} , {s} \n")
 
-        with open(args.lin_test_out, "w+") as f:
-            f.write(f"id \t Predicted_Linguistic \n")
-            for p, s in zip(test_lin_sent_ids, test_lin_y_pred):
-                f.write(f"{p} , {s} \n")
+        if args.test:
+            with open(args.lin_test_out, "w+") as f:
+                f.write(f"id \t Predicted_Linguistic \n")
+                for p, s in zip(test_lin_sent_ids, test_lin_y_pred):
+                    f.write(f"{p} , {s} \n")
 
         with open(args.acc_out, "a") as f:
             f.write(f"dev sentiment acc :: {dev_sentiment_accuracy :.3f}\n")
@@ -735,6 +771,8 @@ def get_args():
     parser.add_argument("--f", type=str, default="")
     parser.add_argument("--device", default="cuda")
 
+    parser.add_argument("--test", default=False, const=True, nargs="?")
+
 	# Experiments
     parser.add_argument("--load_pretrain", const="pretrain.pt", nargs="?", default=False)
     parser.add_argument("--enable_pretrain", const="pretrain.pt", nargs="?", default=False)
@@ -744,6 +782,8 @@ def get_args():
 
     parser.add_argument("--enable_per_layer_finetune", const=0.95, nargs="?", default=False)
     parser.add_argument("--enable_multitask_finetune", action="store_true")
+
+    parser.add_argument("--lora", const=4, type=int, default=False, nargs="?")
 
     args = parser.parse_args()
     return args
