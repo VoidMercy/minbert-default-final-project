@@ -521,6 +521,8 @@ def convert_state_dict(path):
           new_key = _key.replace(x, y)
       if new_key:
         old_keys.append(key)
+        if new_key.startswith("bert."):
+            new_key = new_key[5:]
         new_keys.append(new_key)
 
     for old_key, new_key in zip(old_keys, new_keys):
@@ -562,7 +564,7 @@ def train_multitask(args):
     if args.enable_pretrain:
         assert args.option == "finetune"
         pretrained_model = train_pretraining(args, model, device, config)
-        torch.save(pretrained_model.bert.state_dict(), args.enable_pretrain)
+        torch.save(pretrained_model.state_dict(), args.enable_pretrain)
         print(f"Saved pre-trained BERT to {args.enable_pretrain}")
 
         state_dict = convert_state_dict(args.enable_pretrain)
