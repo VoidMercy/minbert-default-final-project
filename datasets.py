@@ -120,37 +120,28 @@ class SentencePairDataset(Dataset):
         labels = [x[2] for x in data]
         sent_ids = [x[3] for x in data]
 
-        encoding1 = self.tokenizer(sent1, return_tensors='pt', padding=True, truncation=True)
-        encoding2 = self.tokenizer(sent2, return_tensors='pt', padding=True, truncation=True)
+        encoding = self.tokenizer(sent1, sent2, return_tensors='pt', padding=True, truncation=True)
 
-        token_ids = torch.LongTensor(encoding1['input_ids'])
-        attention_mask = torch.LongTensor(encoding1['attention_mask'])
-        token_type_ids = torch.LongTensor(encoding1['token_type_ids'])
+        token_ids = torch.LongTensor(encoding['input_ids'])
+        attention_mask = torch.LongTensor(encoding['attention_mask'])
+        token_type_ids = torch.LongTensor(encoding['token_type_ids'])
 
-        token_ids2 = torch.LongTensor(encoding2['input_ids'])
-        attention_mask2 = torch.LongTensor(encoding2['attention_mask'])
-        token_type_ids2 = torch.LongTensor(encoding2['token_type_ids'])
         if self.isRegression:
             labels = torch.DoubleTensor(labels)
         else:
             labels = torch.LongTensor(labels)
 
         return (token_ids, token_type_ids, attention_mask,
-                token_ids2, token_type_ids2, attention_mask2,
                 labels,sent_ids)
 
     def collate_fn(self, all_data):
         (token_ids, token_type_ids, attention_mask,
-         token_ids2, token_type_ids2, attention_mask2,
          labels, sent_ids) = self.pad_data(all_data)
 
         batched_data = {
-                'token_ids_1': token_ids,
-                'token_type_ids_1': token_type_ids,
-                'attention_mask_1': attention_mask,
-                'token_ids_2': token_ids2,
-                'token_type_ids_2': token_type_ids2,
-                'attention_mask_2': attention_mask2,
+                'token_ids': token_ids,
+                'token_type_ids': token_type_ids,
+                'attention_mask': attention_mask,
                 'labels': labels,
                 'sent_ids': sent_ids
             }
@@ -176,34 +167,23 @@ class SentencePairTestDataset(Dataset):
         sent2 = [x[1] for x in data]
         sent_ids = [x[2] for x in data]
 
-        encoding1 = self.tokenizer(sent1, return_tensors='pt', padding=True, truncation=True)
-        encoding2 = self.tokenizer(sent2, return_tensors='pt', padding=True, truncation=True)
+        encoding = self.tokenizer(sent1, sent2, return_tensors='pt', padding=True, truncation=True)
 
-        token_ids = torch.LongTensor(encoding1['input_ids'])
-        attention_mask = torch.LongTensor(encoding1['attention_mask'])
-        token_type_ids = torch.LongTensor(encoding1['token_type_ids'])
-
-        token_ids2 = torch.LongTensor(encoding2['input_ids'])
-        attention_mask2 = torch.LongTensor(encoding2['attention_mask'])
-        token_type_ids2 = torch.LongTensor(encoding2['token_type_ids'])
-
+        token_ids = torch.LongTensor(encoding['input_ids'])
+        attention_mask = torch.LongTensor(encoding['attention_mask'])
+        token_type_ids = torch.LongTensor(encoding['token_type_ids'])
 
         return (token_ids, token_type_ids, attention_mask,
-                token_ids2, token_type_ids2, attention_mask2,
                sent_ids)
 
     def collate_fn(self, all_data):
         (token_ids, token_type_ids, attention_mask,
-         token_ids2, token_type_ids2, attention_mask2,
          sent_ids) = self.pad_data(all_data)
 
         batched_data = {
-                'token_ids_1': token_ids,
-                'token_type_ids_1': token_type_ids,
-                'attention_mask_1': attention_mask,
-                'token_ids_2': token_ids2,
-                'token_type_ids_2': token_type_ids2,
-                'attention_mask_2': attention_mask2,
+                'token_ids': token_ids,
+                'token_type_ids': token_type_ids,
+                'attention_mask': attention_mask,
                 'sent_ids': sent_ids
             }
 
@@ -374,13 +354,10 @@ if __name__ == "__main__":
     )
 
     from transformers import BertForMaskedLM, Trainer, TrainingArguments
-    import datasets
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
     model = BertForMaskedLM.from_pretrained('bert-base-uncased')
 
-    for batch in dataloader:
-        print(batch)
-        print(batch["input_ids"].shape)
-        print(batch["labels"].shape)
-        exit()
+    output = tokenizer("test two", return_tensors='pt', padding=True, truncation=True)
+    print(output)
+
