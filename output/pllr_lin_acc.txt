@@ -1,0 +1,14 @@
+Epoch 0: train loss :: 0.010, train acc :: 0.709, dev acc :: 0.698
+Epoch 1: train loss :: 0.008, train acc :: 0.829, dev acc :: 0.808
+Epoch 2: train loss :: 0.006, train acc :: 0.873, dev acc :: 0.820
+Epoch 3: train loss :: 0.005, train acc :: 0.907, dev acc :: 0.827
+Epoch 4: train loss :: 0.004, train acc :: 0.923, dev acc :: 0.822
+Epoch 5: train loss :: 0.003, train acc :: 0.946, dev acc :: 0.822
+Epoch 6: train loss :: 0.003, train acc :: 0.967, dev acc :: 0.837
+Epoch 7: train loss :: 0.002, train acc :: 0.965, dev acc :: 0.835
+Epoch 8: train loss :: 0.002, train acc :: 0.977, dev acc :: 0.833
+Epoch 9: train loss :: 0.002, train acc :: 0.989, dev acc :: 0.850
+dev sentiment acc :: 0.245
+dev paraphrase acc :: 0.466
+dev sts corr :: 0.061
+dev linguistic acc :: 0.850
