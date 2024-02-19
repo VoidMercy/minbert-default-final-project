@@ -29,7 +29,9 @@ from datasets import (
     SentenceClassificationTestDataset,
     SentencePairDataset,
     SentencePairTestDataset,
-    load_multitask_data
+    load_multitask_data,
+    load_mlm_data,
+    MLMDataset
 )
 
 from evaluation import model_eval_sst, model_eval_paraphrase, model_eval_sts, model_eval_lin, model_eval_multitask, model_eval_test_multitask
@@ -65,11 +67,7 @@ class MultitaskBERT(nn.Module):
         super(MultitaskBERT, self).__init__()
         self.bert = BertModel.from_pretrained('bert-base-uncased')
         # Pretrain mode does not require updating BERT paramters.
-        for param in self.bert.parameters():
-            if config.option == 'pretrain':
-                param.requires_grad = False
-            elif config.option == 'finetune':
-                param.requires_grad = True
+        self.set_grad(config)
         # You will want to add layers here to perform the downstream tasks.
 
         self.sentiment_linear1 = torch.nn.Linear(self.bert.config.hidden_size, 100)
@@ -81,6 +79,13 @@ class MultitaskBERT(nn.Module):
         self.linguistic_linear1 = torch.nn.Linear(self.bert.config.hidden_size, 100)
         self.linguistic_linear2 = torch.nn.Linear(100, 1)
         self.initialize_weights()
+
+    def set_grad(self, config):
+        for param in self.bert.parameters():
+            if config.option == 'pretrain':
+                param.requires_grad = False
+            elif config.option == 'finetune':
+                param.requires_grad = True
 
     def initialize_weights(self):
         init_method = torch.nn.init.xavier_uniform_
@@ -253,7 +258,7 @@ def train_sst(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}\n")
-	save_model(model, optimizer, args, config, args.filepath)
+    save_model(model, optimizer, args, config, args.filepath)
 
 def train_paraphrase(args, model, device, config):
     # Create the data and its corresponding datasets and dataloader.
@@ -313,7 +318,7 @@ def train_paraphrase(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}\n")
-	save_model(model, optimizer, args, config, args.filepath)
+    save_model(model, optimizer, args, config, args.filepath)
 
 def train_sts(args, model, device, config):
     # Create the data and its corresponding datasets and dataloader.
@@ -373,7 +378,7 @@ def train_sts(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train corr :: {train_corr :.3f}, dev corr :: {dev_corr :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train corr :: {train_corr :.3f}, dev corr :: {dev_corr :.3f}\n")
-	save_model(model, optimizer, args, config, args.filepath)
+    save_model(model, optimizer, args, config, args.filepath)
 
 def train_lin(args, model, device, config):
     # Create the data and its corresponding datasets and dataloader.
@@ -427,7 +432,56 @@ def train_lin(args, model, device, config):
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}")
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}\n")
-	save_model(model, optimizer, args, config, args.filepath)
+    save_model(model, optimizer, args, config, args.filepath)
+
+def train_pretraining(args, model, device, config):
+    all_sentences = load_mlm_data(args.sst_train,args.para_train,args.sts_train,args.lin_train, args.pretrain_dataset)
+
+    mlm_dataset = MLMDataset(all_sentences, {})
+    mlm_dataloader = torch.utils.data.DataLoader (
+        mlm_dataset, batch_size=args.batch_size, collate_fn=mlm_dataset.collate_fn, shuffle=True
+    )
+
+    from transformers import BertForMaskedLM
+
+    model = BertForMaskedLM.from_pretrained('bert-base-uncased')
+    for param in model.parameters():
+        param.requires_grad = True
+    model.to(device)
+
+    lr = args.lr
+    optimizer = get_optimizer(args, model)
+
+    # Run for the specified number of epochs.
+    for epoch in range(args.epochs):
+        model.train()
+        train_loss = 0
+        num_batches = 0
+        for batch in tqdm(mlm_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
+            b_ids, b_mask, b_labels = batch['input_ids'], batch['attention_mask'], batch['labels']
+
+            b_ids = b_ids.squeeze(1).to(device)
+            b_mask = b_mask.squeeze(1).to(device)
+
+            b_labels = b_labels.squeeze(1).to(device)
+
+            optimizer.zero_grad()
+            out = model(b_ids, b_mask)
+            logits = out.logits
+            loss = F.cross_entropy(logits.view(-1, logits.shape[-1]), b_labels.view(-1)) / args.batch_size
+
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+            num_batches += 1
+
+        train_loss = train_loss / (num_batches)
+
+        print(f"Epoch {epoch}: train loss :: {train_loss :.3f}")
+        with open(args.acc_out, "a") as f:
+            f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}\n")
+    save_model(model, optimizer, args, config, args.filepath)
 
 def train_multitask(args):
     '''Train MultitaskBERT.
@@ -452,10 +506,12 @@ def train_multitask(args):
 
     if args.load_pretrain:
         model.bert.load_state_dict(torch.load(args.load_pretrain))
+        model.set_grad()
         print(f"Loaded pre-trained BERT from {args.load_pretrain}")
 
     if args.enable_pretrain:
-        # TODO: do pretraining
+        assert args.option == "finetune"
+        train_pretraining(args, model, device, config)
         torch.save(model.bert.state_dict(), args.enable_pretrain)
         print(f"Saved pre-trained BERT to {args.enable_pretrain}")
 
