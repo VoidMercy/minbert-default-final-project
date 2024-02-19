@@ -439,7 +439,7 @@ def train_pretraining(args, model, device, config):
 
     mlm_dataset = MLMDataset(all_sentences, {})
     mlm_dataloader = torch.utils.data.DataLoader (
-        mlm_dataset, batch_size=args.batch_size, collate_fn=mlm_dataset.collate_fn, shuffle=True
+        mlm_dataset, batch_size=args.pretrain_batch_size, collate_fn=mlm_dataset.collate_fn, shuffle=True
     )
 
     from transformers import BertForMaskedLM
@@ -692,6 +692,8 @@ def get_args():
     parser.add_argument("--enable_pretrain", const="pretrain.pt", nargs="?", default=False)
     parser.add_argument("--pretrain_epochs", type=int, default=20)
     parser.add_argument("--pretrain_dataset", type=str, default="sst-para-sts-lin")
+    parser.add_argument("--pretrain_batch_size", type=int, default=8)
+
     parser.add_argument("--enable_per_layer_finetune", const=0.95, nargs="?", default=False)
     parser.add_argument("--enable_multitask_finetune", action="store_true")
 
