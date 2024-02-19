@@ -219,21 +219,20 @@ class MLMDataset(Dataset):
         labels = torch.full(token_ids.shape, -100)
 
         special_tokens = set(self.tokenizer.all_special_ids)
+
         for sent in range(token_ids.shape[0]):
-            for token in range(token_ids.shape[1]):
-                if token_ids[sent, token] not in special_tokens and attention_mask[sent, token] == 1:
-                    if np.random.random() <= 0.15:
-                        labels[sent, token] = token_ids[sent, token]
-                        # Mask token
-                        temp = np.random.random()
-                        if temp <= 0.8: 
-                            token_ids[sent, token] = self.tokenizer.mask_token_id
-                        elif temp <= 0.9:
-                            # random token
-                            rand_token = 0
-                            while rand_token in special_tokens:
-                                rand_token = np.random.randint(0, 30522-1)
-                            token_ids[sent, token] = rand_token
+            special_mask = torch.tensor([int(token_ids[sent][token]) not in special_tokens for token in range(token_ids.shape[1])])
+            attention_mask_sent = attention_mask[sent]
+            random_values = torch.rand_like(attention_mask_sent.float())
+
+            mask_condition = (random_values <= 0.15) & special_mask
+
+            labels[sent, mask_condition] = token_ids[sent, mask_condition]
+            token_ids[sent, mask_condition] = torch.where(random_values[mask_condition] <= 0.8,
+                                                          self.tokenizer.mask_token_id,
+                                                          torch.where(random_values[mask_condition] <= 0.9,
+                                                                      torch.randint(0, 30522-1, size=(mask_condition.sum(),)),
+                                                                      token_ids[sent, mask_condition]))
 
         batched_data = {
             "input_ids" : token_ids,
