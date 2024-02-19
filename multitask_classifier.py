@@ -482,6 +482,9 @@ def train_pretraining(args, model, device, config):
         with open(args.acc_out, "a") as f:
             f.write(f"Pretrain epoch {epoch}: train loss :: {train_loss :.3f}\n")
 
+        torch.save(model.bert.state_dict(), args.enable_pretrain)
+        print(f"Saved pre-trained BERT to {args.enable_pretrain}")
+
     return model
 
 def train_multitask(args):
