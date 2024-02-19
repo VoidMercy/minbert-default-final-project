@@ -453,7 +453,7 @@ def train_pretraining(args, model, device, config):
     optimizer = get_optimizer(args, model)
 
     # Run for the specified number of epochs.
-    for epoch in range(args.epochs):
+    for epoch in range(args.pretrain_epochs):
         model.train()
         train_loss = 0
         num_batches = 0
@@ -513,8 +513,10 @@ def train_multitask(args):
     if args.enable_pretrain:
         assert args.option == "finetune"
         pretrained_model = train_pretraining(args, model, device, config)
-        torch.save(model.bert.state_dict(), args.enable_pretrain)
+        torch.save(pretrained_model.bert.state_dict(), args.enable_pretrain)
         print(f"Saved pre-trained BERT to {args.enable_pretrain}")
+        model.bert.load_state_dict(pretrained_model.bert.state_dict())
+        model.set_grad(config)
 
     if args.task == 'sst':
         train_sst(args, model, device, config)
@@ -688,6 +690,7 @@ def get_args():
 	# Experiments
     parser.add_argument("--load_pretrain", const="pretrain.pt", nargs="?", default=False)
     parser.add_argument("--enable_pretrain", const="pretrain.pt", nargs="?", default=False)
+    parser.add_argument("--pretrain_epochs", type=int, default=20)
     parser.add_argument("--pretrain_dataset", type=str, default="sst-para-sts-lin")
     parser.add_argument("--enable_per_layer_finetune", const=0.95, nargs="?", default=False)
     parser.add_argument("--enable_multitask_finetune", action="store_true")
@@ -701,4 +704,5 @@ if __name__ == "__main__":
     args.acc_out = f'output/{args.f}_{args.task}_acc.txt'
     seed_everything(args.seed)  # Fix the seed for reproducibility.
     train_multitask(args)
-    test_multitask(args)
+    if args.task != "none":
+        test_multitask(args)
