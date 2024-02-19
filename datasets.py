@@ -202,6 +202,9 @@ class MLMDataset(Dataset):
         #                         return_tensors="pt",
         #                     )
 
+        special_tokens = set(self.tokenizer.all_special_ids)
+        self.special_tokens_set = torch.tensor(list(special_tokens))
+
     def __len__(self):
         return len(self.dataset)
 
@@ -218,10 +221,8 @@ class MLMDataset(Dataset):
 
         labels = torch.full(token_ids.shape, -100)
 
-        special_tokens = set(self.tokenizer.all_special_ids)
-
         for sent in range(token_ids.shape[0]):
-            special_mask = torch.tensor([int(token_ids[sent][token]) not in special_tokens for token in range(token_ids.shape[1])])
+            special_mask = ~token_ids[sent].unsqueeze(1).eq(self.special_tokens_set).any(dim=1)
             attention_mask_sent = attention_mask[sent]
             random_values = torch.rand_like(attention_mask_sent.float())
 
