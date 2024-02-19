@@ -195,54 +195,54 @@ class MLMDataset(Dataset):
         self.p = args
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-        self.collate_fn = DataCollatorForLanguageModeling (
-                                tokenizer=self.tokenizer,
-                                mlm=True,
-                                mlm_probability=0.15,
-                                return_tensors="pt",
-                            )
-
-        self.column_names = []
+        # self.collate_fn = DataCollatorForLanguageModeling (
+        #                         tokenizer=self.tokenizer,
+        #                         mlm=True,
+        #                         mlm_probability=0.15,
+        #                         return_tensors="pt",
+        #                     )
 
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, idx):
-        # output = self.tokenizer.encode(self.dataset[idx], return_tensors='pt', padding=True, truncation=True, return_special_tokens_mask=True)[0, ...]
+        # output = self.tokenizer(self.dataset[idx], return_tensors='pt', padding="max_length", truncation=True, return_special_tokens_mask=True)
         # return output
-        output = self.tokenizer(self.dataset[idx], return_tensors='pt', padding="max_length", truncation=True, return_special_tokens_mask=True)
-        return output
+        return self.dataset[idx]
 
-    # def collate_fn(self, all_data):
-    #     encoding = self.tokenizer(all_data, return_tensors='pt', padding=True, truncation=True)
-    #     token_ids = torch.LongTensor(encoding["input_ids"])
-    #     attention_mask = torch.LongTensor(encoding["attention_mask"])
-    #     token_type_ids = torch.LongTensor(encoding["token_type_ids"])
+    def collate_fn(self, all_data):
+        encoding = self.tokenizer(all_data, return_tensors='pt', padding=True, truncation=True)
+        token_ids = torch.LongTensor(encoding["input_ids"])
+        attention_mask = torch.LongTensor(encoding["attention_mask"])
+        token_type_ids = torch.LongTensor(encoding["token_type_ids"])
 
-    #     special_tokens = set(self.tokenizer.all_special_ids)
-    #     print(self.tokenizer.mask_token_id)
-    #     for sent in range(token_ids.shape[0]):
-    #         for token in range(token_ids.shape[1]):
-    #             if token_ids[sent, token] not in special_tokens and attention_mask[sent, token] == 1:
-    #                 if np.random.random() <= 0.15:
-    #                     # Mask token
-    #                     temp = np.random.random()
-    #                     if temp <= 0.8: 
-    #                         token_ids[sent, token] = self.tokenizer.mask_token_id
-    #                     elif temp <= 0.9:
-    #                         # random token
-    #                         rand_token = 0
-    #                         while rand_token in special_tokens:
-    #                             rand_token = np.random.randint(0, 30522-1)
-    #                         token_ids[sent, token] = rand_token
+        labels = torch.full(token_ids.shape, -100)
 
-    #     batched_data = {
-    #         "token_ids" : token_ids,
-    #         "attention_mask" : attention_mask,
-    #         "token_type_ids" : token_type_ids
-    #     }
+        special_tokens = set(self.tokenizer.all_special_ids)
+        for sent in range(token_ids.shape[0]):
+            for token in range(token_ids.shape[1]):
+                if token_ids[sent, token] not in special_tokens and attention_mask[sent, token] == 1:
+                    if np.random.random() <= 0.15:
+                        labels[sent, token] = token_ids[sent, token]
+                        # Mask token
+                        temp = np.random.random()
+                        if temp <= 0.8: 
+                            token_ids[sent, token] = self.tokenizer.mask_token_id
+                        elif temp <= 0.9:
+                            # random token
+                            rand_token = 0
+                            while rand_token in special_tokens:
+                                rand_token = np.random.randint(0, 30522-1)
+                            token_ids[sent, token] = rand_token
+
+        batched_data = {
+            "input_ids" : token_ids,
+            "attention_mask" : attention_mask,
+            "token_type_ids" : token_type_ids,
+            "labels":labels
+        }
         
-    #     return batched_data
+        return batched_data
 
 def load_multitask_data(sentiment_filename,paraphrase_filename,similarity_filename,linguistic_filename,split='train'):
     sentiment_data = []
@@ -352,6 +352,13 @@ if __name__ == "__main__":
     dataloader = torch.utils.data.DataLoader (
         dataset, batch_size=4, collate_fn=dataset.collate_fn, shuffle=True
     )
+
+    for batch in dataloader:
+        print(batch)
+        print(batch["input_ids"].shape)
+        print(batch["labels"].shape)
+        exit()
+    exit()
 
     from transformers import BertForMaskedLM, Trainer, TrainingArguments
 
