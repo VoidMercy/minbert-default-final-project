@@ -2,3 +2,17 @@ dev sentiment acc :: 0.173
 dev paraphrase acc :: 0.620
 dev sts corr :: 0.276
 dev linguistic acc :: 0.307
+Epoch 0: train loss :: 0.071, train corr :: 0.444, dev corr :: 0.434
+Epoch 1: train loss :: 0.061, train corr :: 0.473, dev corr :: 0.470
+Epoch 2: train loss :: 0.057, train corr :: 0.544, dev corr :: 0.527
+Epoch 3: train loss :: 0.056, train corr :: 0.558, dev corr :: 0.540
+Epoch 4: train loss :: 0.054, train corr :: 0.559, dev corr :: 0.547
+Epoch 5: train loss :: 0.054, train corr :: 0.559, dev corr :: 0.542
+Epoch 6: train loss :: 0.052, train corr :: 0.595, dev corr :: 0.578
+Epoch 7: train loss :: 0.053, train corr :: 0.590, dev corr :: 0.576
+Epoch 8: train loss :: 0.053, train corr :: 0.599, dev corr :: 0.587
+Epoch 9: train loss :: 0.052, train corr :: 0.590, dev corr :: 0.578
+dev sentiment acc :: 0.212
+dev paraphrase acc :: 0.622
+dev sts corr :: 0.587
+dev linguistic acc :: 0.309
