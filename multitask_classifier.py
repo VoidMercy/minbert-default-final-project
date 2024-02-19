@@ -663,7 +663,7 @@ def get_args():
                         help='pretrain: the BERT parameters are frozen; finetune: BERT parameters are updated',
                         choices=('pretrain', 'finetune'), default="pretrain")
     parser.add_argument("--task", type=str,
-                        choices=('sst', 'para', 'sts', 'lin'), default="sst")
+                        choices=('sst', 'para', 'sts', 'lin', 'none'), default="none")
     parser.add_argument("--use_gpu", action='store_true')
 
     parser.add_argument("--sst_dev_out", type=str, default="predictions/sst-dev-output.csv")
