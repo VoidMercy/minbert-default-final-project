@@ -12,6 +12,7 @@ Running `python multitask_classifier.py` trains and tests your MultitaskBERT and
 writes all required submission files.
 '''
 
+import os
 import random, numpy as np, argparse
 from types import SimpleNamespace
 
@@ -441,6 +442,9 @@ def train_pretraining(args, model, device, config):
     from transformers import BertForMaskedLM
 
     model = BertForMaskedLM.from_pretrained('bert-base-uncased')
+    if os.path.isfile(args.enable_pretrain):
+      model.load_state_dict(torch.load(args.enable_pretrain))
+      print(f"Loaded cached further pretraining MLM model {args.enable_pretrain}")
     for param in model.parameters():
         param.requires_grad = True
     model.to(device)
