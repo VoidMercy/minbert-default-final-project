@@ -83,13 +83,10 @@ class MultitaskBERT(nn.Module):
         self.set_grad(config)
         # You will want to add layers here to perform the downstream tasks.
 
-        self.sentiment_linear1 = torch.nn.Linear(self.bert.config.hidden_size, 256)
+        self.shared_layer = torch.nn.Linear(self.bert.config.hidden_size, 256)
         self.sentiment_linear2 = torch.nn.Linear(256, 5)
-        self.paraphrase_linear1 = torch.nn.Linear(self.bert.config.hidden_size, 256)
         self.paraphrase_linear2 = torch.nn.Linear(256, 1)
-        self.similarity_linear1 = torch.nn.Linear(self.bert.config.hidden_size, 256)
         self.similarity_linear2 = torch.nn.Linear(256, 1)
-        self.linguistic_linear1 = torch.nn.Linear(self.bert.config.hidden_size, 256)
         self.linguistic_linear2 = torch.nn.Linear(256, 1)
         self.initialize_weights()
 
@@ -121,13 +118,10 @@ class MultitaskBERT(nn.Module):
 
     def initialize_weights(self):
         init_method = torch.nn.init.xavier_uniform_
-        init_method(self.sentiment_linear1.weight)
+        init_method(self.shared_layer.weight)
         init_method(self.sentiment_linear2.weight)
-        init_method(self.paraphrase_linear1.weight)
         init_method(self.paraphrase_linear2.weight)
-        init_method(self.similarity_linear1.weight)
         init_method(self.similarity_linear2.weight)
-        init_method(self.linguistic_linear1.weight)
         init_method(self.linguistic_linear2.weight)
 
     def forward(self, input_ids, attention_mask):
@@ -149,7 +143,7 @@ class MultitaskBERT(nn.Module):
         ### TODO
 
         bert_out = self.bert.forward(input_ids, attention_mask)["pooler_output"]
-        x = self.sentiment_linear1(bert_out)
+        x = self.shared_layer(bert_out)
         x = F.gelu(x)
         x = self.sentiment_linear2(x)
         return x
@@ -162,7 +156,7 @@ class MultitaskBERT(nn.Module):
         ### TODO
 
         bert_out = self.bert.forward(input_ids, attention_mask)["pooler_output"]
-        x = self.paraphrase_linear1(bert_out)
+        x = self.shared_layer(bert_out)
         x = F.gelu(x)
         x = self.paraphrase_linear2(x)
         return x
@@ -174,14 +168,14 @@ class MultitaskBERT(nn.Module):
         ### TODO
 
         bert_out = self.bert.forward(input_ids, attention_mask)["pooler_output"]
-        x = self.similarity_linear1(bert_out)
+        x = self.shared_layer(bert_out)
         x = F.gelu(x)
         x = self.similarity_linear2(x)
         return x
 
     def predict_linguistic(self, input_ids, attention_mask):
         bert_out = self.bert.forward(input_ids, attention_mask)["pooler_output"]
-        x = self.linguistic_linear1(bert_out)
+        x = self.shared_layer(bert_out)
         x = F.gelu(x)
         x = self.linguistic_linear2(x)
         return x
@@ -603,7 +597,7 @@ def train_multi(args, model, device, config):
     iters_per_epoch = 1000
 
     # Run for the specified number of epochs.
-    for epoch in range(args.epochs):
+    for epoch in range(args.multi_epochs):
         model.train()
         train_loss = 0
 
@@ -690,6 +684,8 @@ def train_multi(args, model, device, config):
 
         train_loss = train_loss / iters_per_epoch
 
+        save_model(model, optimizer, args, config, args.filepath)
+"""
         sst_train_acc, *_ = model_eval_sst(sst_train_dataloader, model, device)
         sst_dev_acc, *_ = model_eval_sst(sst_dev_dataloader, model, device)
         para_train_acc, *_ = model_eval_paraphrase(para_train_dataloader, model, device)
@@ -703,7 +699,6 @@ def train_multi(args, model, device, config):
 
         if average_acc > best_dev_acc:
             best_dev_acc = average_acc
-            save_model(model, optimizer, args, config, args.filepath)
 
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, sst train acc :: {sst_train_acc :.3f}, sst dev acc :: {sst_dev_acc :.3f}")
         print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, para train acc :: {para_train_acc :.3f}, para dev acc :: {para_dev_acc :.3f}")
@@ -716,6 +711,8 @@ def train_multi(args, model, device, config):
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, sts train acc :: {sts_train_acc :.3f}, sts dev acc :: {sts_dev_acc :.3f}\n")
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, lin train acc :: {lin_train_acc :.3f}, lin dev acc :: {lin_dev_acc :.3f}\n")
             f.write(f"Epoch {epoch}: average_acc:: {average_acc :.3f}\n")
+"""
+
 
 def train_multitask(args):
     '''Train MultitaskBERT.
@@ -772,7 +769,14 @@ def train_multitask(args):
         model.set_grad(config)
 
     if args.multitask:
-        train_multi(args, model, device, config)
+        if os.path.isfile(args.multitask_filepath):
+            saved = torch.load(args.multitask_filepath)
+            model.load_state_dict(saved['model'])
+            model = model.to(device)
+        else:
+            train_multi(args, model, device, config)
+        if args.multitask_filepath:
+            save_model(model, optimizer, args, config, args.multitask_filepath)
     if args.task == 'sst':
         train_sst(args, model, device, config)
     elif args.task == 'para':
@@ -962,6 +966,8 @@ def get_args():
     parser.add_argument("--lora", const=4, type=int, default=False, nargs="?")
 
     parser.add_argument("--multitask", default=False, const=True, nargs="?")
+    parser.add_argument("--multitask_filepath", default=False, const="multitask.pt", nargs="?")
+    parser.add_argument("--multi_epochs", default=3, type=int)
 
     args = parser.parse_args()
     return args
