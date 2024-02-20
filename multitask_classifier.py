@@ -594,7 +594,7 @@ def train_multi(args, model, device, config):
     optimizer = get_optimizer(args, model)
     best_dev_acc = 0
 
-    iters_per_epoch = 1000
+    iters_per_epoch = 2
 
     # Run for the specified number of epochs.
     for epoch in range(args.multi_epochs):
@@ -685,6 +685,8 @@ def train_multi(args, model, device, config):
         train_loss = train_loss / iters_per_epoch
 
         save_model(model, optimizer, args, config, args.filepath)
+        if args.multitask_filepath:
+            save_model(model, optimizer, args, config, args.multitask_filepath)
 """
         sst_train_acc, *_ = model_eval_sst(sst_train_dataloader, model, device)
         sst_dev_acc, *_ = model_eval_sst(sst_dev_dataloader, model, device)
@@ -774,13 +776,12 @@ def train_multitask(args):
 
     if args.multitask:
         if os.path.isfile(args.multitask_filepath):
+            print(f"Loaded saved multitask from {args.multitask_filepath}")
             saved = torch.load(args.multitask_filepath)
             model.load_state_dict(saved['model'])
             model = model.to(device)
         else:
             train_multi(args, model, device, config)
-        if args.multitask_filepath:
-            save_model(model, optimizer, args, config, args.multitask_filepath)
     if args.task == 'sst':
         train_sst(args, model, device, config)
     elif args.task == 'para':
