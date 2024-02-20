@@ -743,15 +743,24 @@ def train_multitask(args):
 
     if args.load_pretrain:
         state_dict = convert_state_dict(args.load_pretrain)
+        if args.lora:
+            model = model.to("cpu")
+            remove_lora(model)
+            model = model.to(device)
         state_dict["position_ids"] = model.state_dict()["bert.position_ids"]
         state_dict["pooler_dense.weight"] = model.state_dict()["bert.pooler_dense.weight"]
         state_dict["pooler_dense.bias"] = model.state_dict()["bert.pooler_dense.bias"]
         model.bert.load_state_dict(state_dict)
         model.set_grad(config)
+        if args.lora:
+            model = model.to("cpu")
+            model.add_lora(args.lora)
+            model = model.to(device)
         print(f"Loaded pre-trained BERT from {args.load_pretrain}")
 
     if args.enable_pretrain:
         assert args.option == "finetune"
+        assert not args.lora
         pretrained_model = train_pretraining(args, model, device, config)
         torch.save(pretrained_model.state_dict(), args.enable_pretrain)
         print(f"Saved pre-trained BERT to {args.enable_pretrain}")
