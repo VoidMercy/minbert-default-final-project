@@ -763,6 +763,9 @@ def train_multitask(args):
         model.bert.load_state_dict(state_dict)
         model.set_grad(config)
 
+    num_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Number of trainable parameters: {num_parameters}")
+
     if args.multitask:
         train_multi(args, model, device, config)
     if args.task == 'sst':
