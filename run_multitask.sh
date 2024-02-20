@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Multitask finetune then finetune
-# python3 multitask_classifier.py --use_gpu --task sst --f multitask_nopretrain_sst --lr 1e-5 --option finetune --enable_per_layer_finetune --batch_size 32 --multitask $@
-python3 multitask_classifier.py --use_gpu --task sts --f multitask_nopretrain_sts --lr 1e-5 --option finetune --enable_per_layer_finetune --batch_size 32 --multitask $@
-python3 multitask_classifier.py --use_gpu --task lin --f multitask_nopretrain_lin --lr 1e-5 --option finetune --enable_per_layer_finetune --batch_size 32 --multitask $@
-python3 multitask_classifier.py --use_gpu --task para --f multitask_nopretrain_para --lr 1e-5 --option finetune --enable_per_layer_finetune --batch_size 24 --multitask $@
+python3 multitask_classifier.py --use_gpu --task sst --f multitask_nopretrain_sst --lr 1e-5 --option finetune --enable_per_layer_finetune --batch_size 32 --multitask --multitask_filepath multitask_nopretrain.pt $@
+python3 multitask_classifier.py --use_gpu --task sts --f multitask_nopretrain_sts --lr 1e-5 --option finetune --enable_per_layer_finetune --batch_size 32 --multitask --multitask_filepath multitask_nopretrain.pt $@
+python3 multitask_classifier.py --use_gpu --task lin --f multitask_nopretrain_lin --lr 1e-5 --option finetune --enable_per_layer_finetune --batch_size 32 --multitask --multitask_filepath multitask_nopretrain.pt $@
+python3 multitask_classifier.py --use_gpu --task para --f multitask_nopretrain_para --lr 1e-5 --option finetune --enable_per_layer_finetune --batch_size 24 --multitask --multitask_filepath multitask_nopretrain.pt $@
 
 # Multitask finetinue then finetune with pre-training
 python3 multitask_classifier.py --use_gpu --task sst --f multitask_pretrain_sst --lr 1e-5 --option finetune --enable_per_layer_finetune --batch_size 32 --multitask --multitask_filepath multitask_pretrain.pt --load_pretrain epoch_3_further-pretraining-sst-para-sts-lin.pt $@
