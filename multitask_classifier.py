@@ -614,8 +614,8 @@ def train_multi(args, model, device, config):
             except StopIteration:
                 if dataset == 0: iters[dataset] = iter(sst_train_dataloader)
                 if dataset == 1: iters[dataset] = iter(para_train_dataloader)
-                if dataset == 1: iters[dataset] = iter(sts_train_dataloader)
-                if dataset == 1: iters[dataset] = iter(lin_train_dataloader)
+                if dataset == 2: iters[dataset] = iter(sts_train_dataloader)
+                if dataset == 3: iters[dataset] = iter(lin_train_dataloader)
                 batch = next(iters[dataset])
 
             if dataset == 0:
