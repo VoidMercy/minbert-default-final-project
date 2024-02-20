@@ -27,6 +27,8 @@ from bert import BertModel
 from optimizer import AdamW
 from tqdm import tqdm
 
+import numpy as np
+
 from datasets import (
     SentenceClassificationDataset,
     SentenceClassificationTestDataset,
@@ -551,6 +553,163 @@ def convert_state_dict(path):
 
     return new_state_dict
 
+def train_multi(args, model, device, config):
+    # Create the data and its corresponding datasets and dataloader.
+    sst_train_data, num_labels,para_train_data, sts_train_data, lin_train_data = load_multitask_data(args.sst_train,args.para_train,args.sts_train,args.lin_train, split ='train')
+    sst_dev_data, num_labels,para_dev_data, sts_dev_data, lin_dev_data = load_multitask_data(args.sst_dev,args.para_dev,args.sts_dev,args.lin_dev, split ='train')
+
+    sst_train_data = SentenceClassificationDataset(sst_train_data, args)
+    sst_dev_data = SentenceClassificationDataset(sst_dev_data, args)
+
+    sst_train_dataloader = DataLoader(sst_train_data, shuffle=True, batch_size=args.batch_size,
+                                      collate_fn=sst_train_data.collate_fn)
+    sst_dev_dataloader = DataLoader(sst_dev_data, shuffle=False, batch_size=args.batch_size,
+                                    collate_fn=sst_dev_data.collate_fn)
+
+    para_train_data = SentencePairDataset(para_train_data, args)
+    para_dev_data = SentencePairDataset(para_dev_data, args)
+
+    para_train_dataloader = DataLoader(para_train_data, shuffle=True, batch_size=args.batch_size,
+                                      collate_fn=para_train_data.collate_fn)
+    para_dev_dataloader = DataLoader(para_dev_data, shuffle=False, batch_size=args.batch_size,
+                                     collate_fn=para_dev_data.collate_fn)
+
+    sts_train_data = SentencePairDataset(sts_train_data, args, isRegression=True)
+    sts_dev_data = SentencePairDataset(sts_dev_data, args, isRegression=True)
+
+    sts_train_dataloader = DataLoader(sts_train_data, shuffle=True, batch_size=args.batch_size,
+                                     collate_fn=sts_train_data.collate_fn)
+    sts_dev_dataloader = DataLoader(sts_dev_data, shuffle=False, batch_size=args.batch_size,
+                                    collate_fn=sts_dev_data.collate_fn)
+
+    lin_train_data = SentenceClassificationDataset(lin_train_data, args)
+    lin_dev_data = SentenceClassificationDataset(lin_dev_data, args)
+
+    lin_train_dataloader = DataLoader(lin_train_data, shuffle=True, batch_size=args.batch_size,
+                                     collate_fn=lin_train_data.collate_fn)
+    lin_dev_dataloader = DataLoader(lin_dev_data, shuffle=False, batch_size=args.batch_size,
+                                        collate_fn=lin_dev_data.collate_fn)
+
+    sst_train_iter = iter(sst_train_dataloader)
+    para_train_iter = iter(para_train_dataloader)
+    sts_train_iter = iter(sts_train_dataloader)
+    lin_train_iter = iter(lin_train_dataloader)
+    iters = [sst_train_iter, para_train_iter, sts_train_iter, lin_train_iter]
+
+    lr = args.lr
+    optimizer = get_optimizer(args, model)
+    best_dev_acc = 0
+
+    iters_per_epoch = 1000
+
+    # Run for the specified number of epochs.
+    for epoch in range(args.epochs):
+        model.train()
+        train_loss = 0
+
+        for num_batches in tqdm(range(iters_per_epoch), desc=f'train-{epoch}', disable=TQDM_DISABLE):
+            dataset = np.random.randint(0, len(iters) - 1)
+            batch = next(iters[dataset])
+
+            if dataset == 0:
+                b_ids, b_mask, b_labels = (batch['token_ids'],
+                               batch['attention_mask'], batch['labels'])
+
+                b_ids = b_ids.to(device)
+                b_mask = b_mask.to(device)
+                b_labels = b_labels.to(device)
+
+                optimizer.zero_grad()
+                logits = model.predict_sentiment(b_ids, b_mask)
+                loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
+
+                loss.backward()
+                optimizer.step()
+
+                train_loss += loss.item()
+            elif dataset == 1:
+                (b_ids, b_mask,
+                 b_labels, b_sent_ids) = (batch['token_ids'], batch['attention_mask'],
+                              batch['labels'], batch['sent_ids'])
+
+                b_ids = b_ids.to(device)
+                b_mask = b_mask.to(device)
+
+                b_labels = b_labels.float().unsqueeze(-1).to(device)
+
+                optimizer.zero_grad()
+                logits = model.predict_paraphrase(b_ids, b_mask)
+                loss = F.binary_cross_entropy_with_logits(logits, b_labels) / args.batch_size
+
+                loss.backward()
+                optimizer.step()
+
+                train_loss += loss.item()
+            elif dataset == 2:
+                (b_ids, b_mask,
+                 b_labels, b_sent_ids) = (batch['token_ids'], batch['attention_mask'],
+                              batch['labels'], batch['sent_ids'])
+
+                b_ids = b_ids.to(device)
+                b_mask = b_mask.to(device)
+
+                b_labels = b_labels.float().unsqueeze(-1).to(device)
+
+                optimizer.zero_grad()
+                logits = model.predict_similarity(b_ids, b_mask)
+                loss = F.mse_loss(logits, b_labels) / args.batch_size
+
+                loss.backward()
+                optimizer.step()
+
+                train_loss += loss.item()
+            elif dataset == 3:
+                b_ids, b_mask, b_labels = batch['input_ids'], batch['attention_mask'], batch['labels']
+
+                b_ids = b_ids.squeeze(1).to(device)
+                b_mask = b_mask.squeeze(1).to(device)
+
+                b_labels = b_labels.squeeze(1).to(device)
+
+                optimizer.zero_grad()
+                out = model(b_ids, b_mask)
+                logits = out.logits
+                loss = F.cross_entropy(logits.view(-1, logits.shape[-1]), b_labels.view(-1)) / args.batch_size
+
+                loss.backward()
+                optimizer.step()
+
+                train_loss += loss.item()
+
+        train_loss = train_loss / iters_per_epoch
+
+        sst_train_acc, *_ = model_eval_sst(sst_train_dataloader, model, device)
+        sst_dev_acc, *_ = model_eval_sst(sst_dev_dataloader, model, device)
+        para_train_acc, *_ = model_eval_para(para_train_dataloader, model, device)
+        para_dev_acc, *_ = model_eval_para(para_dev_dataloader, model, device)
+        sts_train_acc, *_ = model_eval_sts(sts_train_dataloader, model, device)
+        sts_dev_acc, *_ = model_eval_sts(sts_dev_dataloader, model, device)
+        lin_train_acc, *_ = model_eval_lin(lin_train_dataloader, model, device)
+        lin_dev_acc, *_ = model_eval_lin(lin_dev_dataloader, model, device)
+
+        average_acc = (sst_dev_acc + para_dev_acc + sts_dev_acc + lin_dev_acc) / 3
+
+        if average_acc > best_dev_acc:
+            best_dev_acc = average_acc
+            save_model(model, optimizer, args, config, args.filepath)
+
+        print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, sst train acc :: {sst_train_acc :.3f}, sst dev acc :: {sst_dev_acc :.3f}")
+        print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, para train acc :: {para_train_acc :.3f}, para dev acc :: {para_dev_acc :.3f}")
+        print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, sts train acc :: {sts_train_acc :.3f}, sts dev acc :: {sts_dev_acc :.3f}")
+        print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, lin train acc :: {lin_train_acc :.3f}, lin dev acc :: {lin_dev_acc :.3f}")
+        print(f"Epoch {epoch}: average_acc:: {average_acc :.3f}")
+        with open(args.acc_out, "a") as f:
+            f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, sst train acc :: {sst_train_acc :.3f}, sst dev acc :: {sst_dev_acc :.3f}\n")
+            f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, para train acc :: {para_train_acc :.3f}, para dev acc :: {para_dev_acc :.3f}\n")
+            f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, sts train acc :: {sts_train_acc :.3f}, sts dev acc :: {sts_dev_acc :.3f}\n")
+            f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, lin train acc :: {lin_train_acc :.3f}, lin dev acc :: {lin_dev_acc :.3f}\n")
+            f.write(f"Epoch {epoch}: average_acc:: {average_acc :.3f}\n")
+
 def train_multitask(args):
     '''Train MultitaskBERT.
 
@@ -597,6 +756,8 @@ def train_multitask(args):
         model.bert.load_state_dict(state_dict)
         model.set_grad(config)
 
+    if args.multitask:
+        train_multi(args, model, device, config)
     if args.task == 'sst':
         train_sst(args, model, device, config)
     elif args.task == 'para':
@@ -784,6 +945,8 @@ def get_args():
     parser.add_argument("--enable_multitask_finetune", action="store_true")
 
     parser.add_argument("--lora", const=4, type=int, default=False, nargs="?")
+
+    parser.add_argument("--multitask", default=False, const=True, nargs="?")
 
     args = parser.parse_args()
     return args
