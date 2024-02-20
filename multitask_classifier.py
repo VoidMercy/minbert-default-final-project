@@ -594,7 +594,7 @@ def train_multi(args, model, device, config):
     optimizer = get_optimizer(args, model)
     best_dev_acc = 0
 
-    iters_per_epoch = 2
+    iters_per_epoch = 1000
 
     # Run for the specified number of epochs.
     for epoch in range(args.multi_epochs):
