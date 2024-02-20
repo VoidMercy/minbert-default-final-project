@@ -760,6 +760,7 @@ def train_multitask(args):
 
     if args.enable_pretrain:
         assert args.option == "finetune"
+        assert not args.lora
         pretrained_model = train_pretraining(args, model, device, config)
         torch.save(pretrained_model.state_dict(), args.enable_pretrain)
         print(f"Saved pre-trained BERT to {args.enable_pretrain}")
