@@ -609,7 +609,14 @@ def train_multi(args, model, device, config):
 
         for num_batches in tqdm(range(iters_per_epoch), desc=f'train-{epoch}', disable=TQDM_DISABLE):
             dataset = np.random.randint(0, len(iters) - 1)
-            batch = next(iters[dataset])
+            try:
+                batch = next(iters[dataset])
+            except StopIteration:
+                if dataset == 0: iters[dataset] = iter(sst_train_dataloader)
+                if dataset == 1: iters[dataset] = iter(para_train_dataloader)
+                if dataset == 1: iters[dataset] = iter(sts_train_dataloader)
+                if dataset == 1: iters[dataset] = iter(lin_train_dataloader)
+                batch = next(iters[dataset])
 
             if dataset == 0:
                 b_ids, b_mask, b_labels = (batch['token_ids'],
@@ -685,8 +692,8 @@ def train_multi(args, model, device, config):
 
         sst_train_acc, *_ = model_eval_sst(sst_train_dataloader, model, device)
         sst_dev_acc, *_ = model_eval_sst(sst_dev_dataloader, model, device)
-        para_train_acc, *_ = model_eval_para(para_train_dataloader, model, device)
-        para_dev_acc, *_ = model_eval_para(para_dev_dataloader, model, device)
+        para_train_acc, *_ = model_eval_paraphrase(para_train_dataloader, model, device)
+        para_dev_acc, *_ = model_eval_paraphrase(para_dev_dataloader, model, device)
         sts_train_acc, *_ = model_eval_sts(sts_train_dataloader, model, device)
         sts_dev_acc, *_ = model_eval_sts(sts_dev_dataloader, model, device)
         lin_train_acc, *_ = model_eval_lin(lin_train_dataloader, model, device)
