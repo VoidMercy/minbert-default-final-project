@@ -747,9 +747,9 @@ def train_multitask(args):
         state_dict["pooler_dense.weight"] = model.state_dict()["bert.pooler_dense.weight"]
         state_dict["pooler_dense.bias"] = model.state_dict()["bert.pooler_dense.bias"]
         model.bert.load_state_dict(state_dict)
-        model.set_grad(config)
+        model.module.set_grad(config)
         if args.lora:
-            model.add_lora(args.lora)
+            model.module.add_lora(args.lora)
         print(f"Loaded pre-trained BERT from {args.load_pretrain}")
 
     model = nn.DataParallel(model)
