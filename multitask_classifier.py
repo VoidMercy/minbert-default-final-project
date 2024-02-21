@@ -216,7 +216,7 @@ def get_optimizer(args, model):
             if "bert" in name and "embed" in name:
                 layer_lr = per_layer_lr[0]
             elif "bert_layers" in name:
-                layer_lr = per_layer_lr[int(name.split(".")[2]) + 1]
+                layer_lr = per_layer_lr[int(name.split("bert_layers.")[1].split(".")[0]) + 1]
             elif "bert.pooler" in name:
                 layer_lr = per_layer_lr[13]
             parameters += [{'params': [p for n, p in model.named_parameters() if n == name and p.requires_grad],
@@ -257,7 +257,7 @@ def train_sst(args, model, device, config):
             b_labels = b_labels.to(device)
 
             optimizer.zero_grad()
-            logits = model.predict_sentiment(b_ids, b_mask)
+            logits = model.module.predict_sentiment(b_ids, b_mask)
             loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
             loss.backward()
@@ -312,7 +312,7 @@ def train_paraphrase(args, model, device, config):
             b_labels = b_labels.float().unsqueeze(-1).to(device)
 
             optimizer.zero_grad()
-            logits = model.predict_paraphrase(b_ids, b_mask)
+            logits = model.module.predict_paraphrase(b_ids, b_mask)
             loss = F.binary_cross_entropy_with_logits(logits, b_labels) / args.batch_size
 
             loss.backward()
@@ -367,7 +367,7 @@ def train_sts(args, model, device, config):
             b_labels = b_labels.float().unsqueeze(-1).to(device)
 
             optimizer.zero_grad()
-            logits = model.predict_similarity(b_ids, b_mask)
+            logits = model.module.predict_similarity(b_ids, b_mask)
             loss = F.mse_loss(logits, b_labels) / args.batch_size
 
             loss.backward()
@@ -420,7 +420,7 @@ def train_lin(args, model, device, config):
             b_labels = b_labels.float().unsqueeze(-1).to(device)
 
             optimizer.zero_grad()
-            logits = model.predict_linguistic(b_ids, b_mask)
+            logits = model.module.predict_linguistic(b_ids, b_mask)
             loss = F.binary_cross_entropy_with_logits(logits, b_labels) / args.batch_size
 
             loss.backward()
@@ -621,7 +621,7 @@ def train_multi(args, model, device, config):
                 b_labels = b_labels.to(device)
 
                 optimizer.zero_grad()
-                logits = model.predict_sentiment(b_ids, b_mask)
+                logits = model.module.predict_sentiment(b_ids, b_mask)
                 loss = F.cross_entropy(logits, b_labels.view(-1), reduction='sum') / args.batch_size
 
                 loss.backward()
@@ -639,7 +639,7 @@ def train_multi(args, model, device, config):
                 b_labels = b_labels.float().unsqueeze(-1).to(device)
 
                 optimizer.zero_grad()
-                logits = model.predict_paraphrase(b_ids, b_mask)
+                logits = model.module.predict_paraphrase(b_ids, b_mask)
                 loss = F.binary_cross_entropy_with_logits(logits, b_labels) / args.batch_size
 
                 loss.backward()
@@ -657,7 +657,7 @@ def train_multi(args, model, device, config):
                 b_labels = b_labels.float().unsqueeze(-1).to(device)
 
                 optimizer.zero_grad()
-                logits = model.predict_similarity(b_ids, b_mask)
+                logits = model.module.predict_similarity(b_ids, b_mask)
                 loss = F.mse_loss(logits, b_labels) / args.batch_size
 
                 loss.backward()
@@ -738,24 +738,22 @@ def train_multitask(args):
     model = MultitaskBERT(config)
 
     lr = args.lr
-    model = model.to(device)
 
     if args.load_pretrain:
         state_dict = convert_state_dict(args.load_pretrain)
         if args.lora:
-            model = model.to("cpu")
             remove_lora(model)
-            model = model.to(device)
         state_dict["position_ids"] = model.state_dict()["bert.position_ids"]
         state_dict["pooler_dense.weight"] = model.state_dict()["bert.pooler_dense.weight"]
         state_dict["pooler_dense.bias"] = model.state_dict()["bert.pooler_dense.bias"]
         model.bert.load_state_dict(state_dict)
-        model.set_grad(config)
+        model.module.set_grad(config)
         if args.lora:
-            model = model.to("cpu")
-            model.add_lora(args.lora)
-            model = model.to(device)
+            model.module.add_lora(args.lora)
         print(f"Loaded pre-trained BERT from {args.load_pretrain}")
+
+    model = nn.DataParallel(model)
+    model = model.to(device)
 
     if args.enable_pretrain:
         assert args.option == "finetune"
@@ -769,7 +767,7 @@ def train_multitask(args):
         state_dict["pooler_dense.weight"] = model.state_dict()["bert.pooler_dense.weight"]
         state_dict["pooler_dense.bias"] = model.state_dict()["bert.pooler_dense.bias"]
         model.bert.load_state_dict(state_dict)
-        model.set_grad(config)
+        model.module.set_grad(config)
 
     num_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Number of trainable parameters: {num_parameters}")
