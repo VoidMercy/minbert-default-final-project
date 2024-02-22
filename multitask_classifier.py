@@ -442,7 +442,7 @@ def train_lin(args, model, device, config):
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}\n")
 
-def train_pretraining(args, model, device, config):
+def train_pretraining(args, model, device, config, start_epoch=0):
     all_sentences = load_mlm_data(args.sst_train,args.para_train,args.sts_train,args.lin_train, args.pretrain_dataset)
 
     mlm_dataset = MLMDataset(all_sentences, {})
@@ -464,6 +464,8 @@ def train_pretraining(args, model, device, config):
 
     # Run for the specified number of epochs.
     for epoch in range(args.pretrain_epochs):
+        if epoch < start_epoch:
+            continue
         model.train()
         train_loss = 0
         num_batches = 0
@@ -760,7 +762,7 @@ def train_multitask(args):
     if args.enable_pretrain:
         assert args.option == "finetune"
         assert not args.lora
-        pretrained_model = train_pretraining(args, model, device, config)
+        pretrained_model = train_pretraining(args, model, device, config, start_epoch=args.pretrain_start_epoch)
         torch.save(pretrained_model.state_dict(), args.enable_pretrain)
         print(f"Saved pre-trained BERT to {args.enable_pretrain}")
 
@@ -962,6 +964,7 @@ def get_args():
     parser.add_argument("--load_pretrain", const="pretrain.pt", nargs="?", default=False)
     parser.add_argument("--enable_pretrain", const="pretrain.pt", nargs="?", default=False)
     parser.add_argument("--pretrain_epochs", type=int, default=20)
+    parser.add_argument("--pretrain_start_epoch", type=int, default=0)
     parser.add_argument("--pretrain_dataset", type=str, default="sst-para-sts-lin")
     parser.add_argument("--pretrain_batch_size", type=int, default=8)
 
