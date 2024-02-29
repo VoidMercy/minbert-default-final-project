@@ -332,12 +332,10 @@ def load_mlm_data(sentiment_filename,paraphrase_filename,similarity_filename,lin
             all_sentences.append(record[0])
     if "para" in datasets:
         for record in paraphrase_data:
-            all_sentences.append(record[0])
-            all_sentences.append(record[1])
+            all_sentences.append((record[0], record[1]))
     if "sts" in datasets:
         for record in similarity_data:
-            all_sentences.append(record[0])
-            all_sentences.append(record[1])
+            all_sentences.append((record[0], record[1]))
     if "lin" in datasets:
         for record in similarity_data:
             all_sentences.append(record[0])
@@ -359,12 +357,3 @@ if __name__ == "__main__":
         print(batch["labels"].shape)
         exit()
     exit()
-
-    from transformers import BertForMaskedLM, Trainer, TrainingArguments
-
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-    model = BertForMaskedLM.from_pretrained('bert-base-uncased')
-
-    output = tokenizer("test two", return_tensors='pt', padding=True, truncation=True)
-    print(output)
-
