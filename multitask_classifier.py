@@ -675,9 +675,8 @@ def train_multi(args, model, device, config):
                 b_labels = b_labels.squeeze(1).to(device)
 
                 optimizer.zero_grad()
-                out = model(b_ids, b_mask)
-                logits = out.logits
-                loss = F.cross_entropy(logits.view(-1, logits.shape[-1]), b_labels.view(-1)) / args.batch_size
+                logits = model.predict_linguistic(b_ids, b_mask)
+                loss = F.binary_cross_entropy_with_logits(logits, b_labels) / args.batch_size
 
                 loss.backward()
                 optimizer.step()
