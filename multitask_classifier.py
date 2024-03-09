@@ -442,7 +442,7 @@ def train_lin(args, model, device, config):
         with open(args.acc_out, "a") as f:
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, train acc :: {train_acc :.3f}, dev acc :: {dev_acc :.3f}\n")
 
-def train_pretraining(args, model, device, config, start_epoch=0):
+def train_pretraining(args, model, device, config, start_epoch=0, pretrain_path=""):
     all_sentences = load_mlm_data(args.sst_train,args.para_train,args.sts_train,args.lin_train, args.pretrain_dataset)
 
     mlm_dataset = MLMDataset(all_sentences, {})
@@ -494,7 +494,7 @@ def train_pretraining(args, model, device, config, start_epoch=0):
         with open(args.acc_out, "a") as f:
             f.write(f"Pretrain epoch {epoch}: train loss :: {train_loss :.3f}\n")
 
-        fname = f"epoch_{epoch}_" + args.enable_pretrain
+        fname = os.path.join(pretrain_path, f"epoch_{epoch}_" + args.enable_pretrain)
         torch.save(model.state_dict(), fname)
         print(f"Saved pre-trained BERT to {fname}")
 
@@ -675,9 +675,8 @@ def train_multi(args, model, device, config):
                 b_labels = b_labels.squeeze(1).to(device)
 
                 optimizer.zero_grad()
-                out = model(b_ids, b_mask)
-                logits = out.logits
-                loss = F.cross_entropy(logits.view(-1, logits.shape[-1]), b_labels.view(-1)) / args.batch_size
+                logits = model.predict_linguistic(b_ids, b_mask)
+                loss = F.binary_cross_entropy_with_logits(logits, b_labels) / args.batch_size
 
                 loss.backward()
                 optimizer.step()
@@ -689,7 +688,6 @@ def train_multi(args, model, device, config):
         save_model(model, optimizer, args, config, args.filepath)
         if args.multitask_filepath:
             save_model(model, optimizer, args, config, args.multitask_filepath)
-"""
         sst_train_acc, *_ = model_eval_sst(sst_train_dataloader, model, device)
         sst_dev_acc, *_ = model_eval_sst(sst_dev_dataloader, model, device)
         para_train_acc, *_ = model_eval_paraphrase(para_train_dataloader, model, device)
@@ -715,8 +713,6 @@ def train_multi(args, model, device, config):
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, sts train acc :: {sts_train_acc :.3f}, sts dev acc :: {sts_dev_acc :.3f}\n")
             f.write(f"Epoch {epoch}: train loss :: {train_loss :.3f}, lin train acc :: {lin_train_acc :.3f}, lin dev acc :: {lin_dev_acc :.3f}\n")
             f.write(f"Epoch {epoch}: average_acc:: {average_acc :.3f}\n")
-"""
-
 
 def train_multitask(args):
     '''Train MultitaskBERT.
@@ -762,7 +758,7 @@ def train_multitask(args):
     if args.enable_pretrain:
         assert args.option == "finetune"
         assert not args.lora
-        pretrained_model = train_pretraining(args, model, device, config, start_epoch=args.pretrain_start_epoch)
+        pretrained_model = train_pretraining(args, model, device, config, start_epoch=args.pretrain_start_epoch, pretrain_path=args.pretrain_path)
         torch.save(pretrained_model.state_dict(), args.enable_pretrain)
         print(f"Saved pre-trained BERT to {args.enable_pretrain}")
 
@@ -864,7 +860,7 @@ def test_multitask(args):
             for p, s in zip(dev_sst_sent_ids, dev_sst_y_pred):
                 f.write(f"{p} , {s} \n")
 
-        if args.test:
+        if args.test and "sst" in args.test:
             with open(args.sst_test_out, "w+") as f:
                 f.write(f"id \t Predicted_Sentiment \n")
                 for p, s in zip(test_sst_sent_ids, test_sst_y_pred):
@@ -876,7 +872,7 @@ def test_multitask(args):
             for p, s in zip(dev_para_sent_ids, dev_para_y_pred):
                 f.write(f"{p} , {s} \n")
 
-        if args.test:
+        if args.test and "para" in args.test:
             with open(args.para_test_out, "w+") as f:
                 f.write(f"id \t Predicted_Is_Paraphrase \n")
                 for p, s in zip(test_para_sent_ids, test_para_y_pred):
@@ -888,7 +884,7 @@ def test_multitask(args):
             for p, s in zip(dev_sts_sent_ids, dev_sts_y_pred):
                 f.write(f"{p} , {s} \n")
 
-        if args.test:
+        if args.test and "sts" in args.test:
             with open(args.sts_test_out, "w+") as f:
                 f.write(f"id \t Predicted_Similiary \n")
                 for p, s in zip(test_sts_sent_ids, test_sts_y_pred):
@@ -900,7 +896,7 @@ def test_multitask(args):
             for p, s in zip(dev_lin_sent_ids, dev_lin_y_pred):
                 f.write(f"{p} , {s} \n")
 
-        if args.test:
+        if args.test and "lin" in args.test:
             with open(args.lin_test_out, "w+") as f:
                 f.write(f"id \t Predicted_Linguistic \n")
                 for p, s in zip(test_lin_sent_ids, test_lin_y_pred):
@@ -958,13 +954,15 @@ def get_args():
     parser.add_argument("--f", type=str, default="")
     parser.add_argument("--device", default="cuda")
 
-    parser.add_argument("--test", default=False, const=True, nargs="?")
+    parser.add_argument("--test", default=False, const="sst-para-sts-lin", nargs="?")
+    parser.add_argument("--force_test", default=False, const=True, nargs="?")
 
 	# Experiments
     parser.add_argument("--load_pretrain", const="pretrain.pt", nargs="?", default=False)
     parser.add_argument("--enable_pretrain", const="pretrain.pt", nargs="?", default=False)
-    parser.add_argument("--pretrain_epochs", type=int, default=20)
+    parser.add_argument("--pretrain_epochs", type=int, default=30)
     parser.add_argument("--pretrain_start_epoch", type=int, default=0)
+    parser.add_argument("--pretrain_path", type=str, default="")
     parser.add_argument("--pretrain_dataset", type=str, default="sst-para-sts-lin")
     parser.add_argument("--pretrain_batch_size", type=int, default=8)
 
@@ -986,5 +984,5 @@ if __name__ == "__main__":
     args.acc_out = f'output/{args.f}_{args.task}_acc.txt'
     seed_everything(args.seed)  # Fix the seed for reproducibility.
     train_multitask(args)
-    if args.task != "none":
+    if args.task != "none" or args.force_test:
         test_multitask(args)
